@@ -21,7 +21,7 @@ From the repository root:
 python -m sql_demo setup
 ```
 
-When setup finishes, the terminal prints the VM address and the Power BI username, password, and URI. The same instructions are in `output/demo-connection.txt` and on the VM desktop.
+When setup finishes, the terminal prints the VM address and the Power BI username, password, and URI.
 
 On a Mac, **Windows App** has been automatically installed as part of the setup process. It is in the Applications folder. This is Microsoft's Remote Desktop client. Use that installed app to connect to the Windows VM.
 
@@ -41,13 +41,13 @@ Edit `.env` before you run setup. The first three values are required. The datab
 ## Connect
 
 1. On a Mac, open the **Windows App** that setup installed. It is in the Applications folder.
-2. Add a PC using the VM's public IP address from `output/demo-connection.txt`.
-3. Sign in with the Windows username and password from that file. Accept the certificate warning for the new VM if prompted.
+2. Add a PC using the VM's public IP address printed at the end of setup.
+3. Sign in with the Windows username and password printed there. Accept the certificate warning for the new VM if prompted.
 4. On Windows, use the built-in Remote Desktop client (`mstsc`) with the same details.
 5. Inside the VM, open **Power BI Desktop** from the desktop shortcut.
 6. Choose **Get data**, search for **MongoDB**, and select **MongoDB Atlas SQL**.
-7. Paste the MongoDB URI from the guide. Do not put a username or password in the URI.
-8. Enter the database name and sign in as the database user from the guide.
+7. Paste the MongoDB URI printed at the end of setup. Do not put a username or password in the URI.
+8. Enter the database name and sign in as the database user printed there.
 9. Load a collection.
 
 ## Remove the demo

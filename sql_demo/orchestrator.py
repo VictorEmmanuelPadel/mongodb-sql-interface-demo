@@ -11,7 +11,6 @@ import requests
 
 from sql_demo.atlas import AtlasCli, cluster_srv_host
 from sql_demo.azure_cli import current_subscription_id, ensure_azure_cli
-from sql_demo.azure_run import publish_demo_files
 from sql_demo.config import Config, resolve_password
 from sql_demo.downloads import resolve_artifacts
 from sql_demo.logutil import Steps, banner, details, log, note, ok, warn
@@ -23,7 +22,7 @@ from sql_demo.schema_build import (
 )
 from sql_demo.terraform_runner import TerraformError, TerraformRunner, VmInfo
 from sql_demo.uriutil import power_bi_uri, schema_builder_uri
-from sql_demo.vm_guide import render_guide, sample_sql
+from sql_demo.vm_guide import sample_sql
 
 
 def setup(config: Config, root: Path) -> None:
@@ -34,7 +33,7 @@ def setup(config: Config, root: Path) -> None:
         ["Check the Atlas cluster", "Configure Atlas"]
         + ([] if config.skip_vm else ["Prepare this computer", "Create the Windows VM"])
         + ([] if config.skip_schema else ["Build the SQL schema"])
-        + ["Write the connection guide"]
+        + ["Write sample queries"]
     )
     config = _prepare_runtime_config(config, output)
 
@@ -113,33 +112,12 @@ def setup(config: Config, root: Path) -> None:
             log("schema", f"  • {row['database']}.{row['collection']}{flag}")
 
     steps.next()
-    guide = render_guide(
-        config,
-        host=host,
-        power_bi_uri=power_bi_uri(host),
-        vm_public_ip=vm.public_ip if vm else "",
-        schemas=schemas,
-    )
     queries = sample_sql(
         config.primary_database,
         [str(row["collection"]) for row in schemas if row["database"] == config.primary_database],
     )
-    connection = output / "demo-connection.txt"
-    connection.write_text(guide, encoding="utf-8")
-    connection.chmod(0o600)
     (output / "sample-queries.sql").write_text(queries, encoding="utf-8")
-    ok("setup", f"Wrote {connection.relative_to(root)} and sample-queries.sql.")
-
-    if vm is not None:
-        publish_demo_files(
-            config,
-            vm,
-            {
-                r"C:\Users\Public\Desktop\MongoDB SQL Interface Demo.txt": guide,
-                r"C:\SQLInterfaceDemo\README.txt": guide,
-                r"C:\SQLInterfaceDemo\sample-queries.sql": queries,
-            },
-        )
+    ok("setup", f"Wrote {(output / 'sample-queries.sql').relative_to(root)}.")
 
     banner("Demo is ready")
     if vm is not None:
@@ -163,9 +141,6 @@ def setup(config: Config, root: Path) -> None:
             ("Password", config.sql_password),
         ],
     )
-    print(flush=True)
-    saved = f"Saved in {connection.relative_to(root)}."
-    note(saved + (" The same guide is on the VM desktop." if vm is not None else ""))
     print(flush=True)
 
 
