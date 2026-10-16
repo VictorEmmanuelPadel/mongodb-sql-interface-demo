@@ -56,7 +56,7 @@ Edit `.env` before you run setup. The first three values are required. The datab
 
 ## Remove the demo
 
-The Azure VM is billed until you delete it. This command removes the VM, the saved PC in Windows App on a Mac, the demo database user, the SQL Interface, and the `__sql_schemas` collection. It does not delete the Atlas cluster or the other data in it. If setup generated the database password, set `SQL_PASSWORD` to the password it printed before you run this command.
+The Azure VM is billed until you delete it. This command removes the VM, the saved PC in Windows App on a Mac, the demo database user, the SQL Interface, and the `__sql_schemas` collection. It does not delete the Atlas cluster or the other data in it.
 
 ```bash
 python -m sql_demo destroy --purge-atlas

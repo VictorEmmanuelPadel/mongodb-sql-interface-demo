@@ -11,7 +11,7 @@ import requests
 
 from sql_demo.atlas import AtlasCli, cluster_srv_host
 from sql_demo.azure_cli import current_subscription_id, ensure_azure_cli
-from sql_demo.config import Config, resolve_password
+from sql_demo.config import Config, generate_password, resolve_password
 from sql_demo.downloads import FALLBACK_ODBC_WINDOWS, FALLBACK_POWERBI, resolve_artifacts
 from sql_demo.logutil import Steps, banner, details, log, note, ok, warn
 from sql_demo.mac_remote import (
@@ -202,10 +202,18 @@ def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
         role = str(state.get("schema_role") or config.schema_role)
         cluster_name = str(state.get("atlas_cluster_name") or config.atlas_cluster_name)
         databases = tuple(str(name) for name in (state.get("databases") or config.databases))
-        sql_password = _existing_sql_password(config.sql_password)
+        sql_password = config.sql_password or generate_password()
         cluster = client.get_cluster(cluster_name)
         client.allow_current_ip("sql-interface-demo cleanup")
         client.ensure_schema_role(role, databases)
+        client.ensure_database_user(
+            username=username,
+            password=sql_password,
+            databases=databases,
+            schema_role=role,
+            cluster_name=cluster_name,
+            scope_to_cluster=True,
+        )
         removed.extend(
             drop_sql_schemas(
                 schema_builder_uri(cluster_srv_host(cluster), username, sql_password),
@@ -231,15 +239,6 @@ def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
     for item in kept:
         print(f"    • {item}", flush=True)
     print(flush=True)
-
-
-def _existing_sql_password(supplied: str) -> str:
-    if supplied:
-        return supplied
-    raise RuntimeError(
-        "Set SQL_PASSWORD to the password printed at the end of setup "
-        "so cleanup can sign in and remove __sql_schemas."
-    )
 
 
 def _prepare_runtime_config(config: Config) -> Config:
