@@ -10,7 +10,7 @@ from pathlib import Path
 
 import requests
 from pymongo import MongoClient
-from pymongo.errors import PyMongoError
+from pymongo.errors import OperationFailure, PyMongoError
 
 from sql_demo.logutil import log, ok, show_command, warn
 from sql_demo.uriutil import redact_uri
@@ -118,6 +118,41 @@ def run_schema_manager(
         warn("schema", f"Cluster firewall may still be propagating. Retry {attempt}/{attempts}.")
         time.sleep(15)
     raise RuntimeError(f"Schema builder failed.\n{last_output}")
+
+
+def drop_sql_schemas(uri: str, databases: tuple[str, ...]) -> list[str]:
+    """Drop __sql_schemas in each database. Missing collections count as already removed."""
+    last_error: Exception | None = None
+    for attempt in range(1, 9):
+        try:
+            return _drop_sql_schemas_once(uri, databases)
+        except OperationFailure as exc:
+            if not _can_retry_drop(exc):
+                raise RuntimeError(f"Could not remove __sql_schemas: {exc}") from exc
+            last_error = exc
+        except PyMongoError as exc:
+            last_error = exc
+        warn("atlas", f"Waiting to remove __sql_schemas. Retry {attempt}/8.")
+        time.sleep(10)
+    raise RuntimeError(f"Could not remove __sql_schemas: {last_error}") from last_error
+
+
+def _drop_sql_schemas_once(uri: str, databases: tuple[str, ...]) -> list[str]:
+    removed: list[str] = []
+    with MongoClient(uri, serverSelectionTimeoutMS=20000) as client:
+        client.admin.command("ping")
+        for database in databases:
+            collection = client[database]["__sql_schemas"]
+            exists = "__sql_schemas" in client[database].list_collection_names()
+            if exists:
+                collection.drop()
+            removed.append(f"{database}.__sql_schemas")
+    return removed
+
+
+def _can_retry_drop(exc: OperationFailure) -> bool:
+    text = str(exc).lower()
+    return exc.code in {13, 18} or "not authorized" in text or "unauthorized" in text
 
 
 def verify_schemas(uri: str, databases: tuple[str, ...]) -> list[dict]:

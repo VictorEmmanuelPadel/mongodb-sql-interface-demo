@@ -14,6 +14,7 @@ def test_schema_privileges_cover_sql_schema_writes() -> None:
         "FIND@sample_mflix.__sql_schemas",
         "INSERT@sample_mflix.__sql_schemas",
         "UPDATE@sample_mflix.__sql_schemas",
+        "DROP_COLLECTION@sample_mflix.__sql_schemas",
     ]
 
 

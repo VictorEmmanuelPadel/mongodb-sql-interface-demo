@@ -1,5 +1,3 @@
-import stat
-
 import pytest
 
 from sql_demo.config import Config, ConfigError, generate_password, resolve_password
@@ -78,18 +76,13 @@ def test_config_rejects_a_display_region_name() -> None:
         Config.from_mapping(_env(AZURE_LOCATION="East US"))
 
 
-def test_supplied_password_is_kept(tmp_path) -> None:
-    assert resolve_password("chosen-secret", tmp_path, "sql-password") == "chosen-secret"
-    assert not (tmp_path / "sql-password").exists()
+def test_supplied_password_is_kept() -> None:
+    assert resolve_password("chosen-secret") == "chosen-secret"
 
 
-def test_sql_password_is_reused(tmp_path) -> None:
-    first = resolve_password("", tmp_path, "sql-password")
-    second = resolve_password("", tmp_path, "sql-password")
-    assert first == second
-    assert len(first) >= 12
-    mode = (tmp_path / "sql-password").stat().st_mode
-    assert mode & stat.S_IRWXO == 0
+def test_blank_password_is_generated() -> None:
+    password = resolve_password("")
+    assert len(password) >= 12
 
 
 def test_generated_password_has_mixed_characters() -> None:

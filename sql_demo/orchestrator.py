@@ -17,6 +17,7 @@ from sql_demo.logutil import Steps, banner, details, log, note, ok, warn
 from sql_demo.mac_remote import ensure_mac_remote_desktop
 from sql_demo.schema_build import (
     download_schema_manager,
+    drop_sql_schemas,
     run_schema_manager,
     verify_schemas,
 )
@@ -35,7 +36,7 @@ def setup(config: Config, root: Path) -> None:
         + ([] if config.skip_schema else ["Build the SQL schema"])
         + ["Write sample queries"]
     )
-    config = _prepare_runtime_config(config, output)
+    config = _prepare_runtime_config(config)
 
     steps.next()
     client = _atlas(config)
@@ -176,20 +177,31 @@ def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
         removed.append(f"Cluster firewall entry for the VM ({vm_ip})")
 
     kept = [
-        f"Atlas cluster {config.atlas_cluster_name} and its data",
+        f"Atlas cluster {config.atlas_cluster_name}",
         "This computer's entry on the cluster firewall",
     ]
     if purge_atlas:
         username = str(state.get("sql_username") or config.sql_username)
         role = str(state.get("schema_role") or config.schema_role)
-        cluster = str(state.get("atlas_cluster_name") or config.atlas_cluster_name)
+        cluster_name = str(state.get("atlas_cluster_name") or config.atlas_cluster_name)
+        databases = tuple(str(name) for name in (state.get("databases") or config.databases))
+        sql_password = _existing_sql_password(config.sql_password)
+        cluster = client.get_cluster(cluster_name)
+        client.allow_current_ip("sql-interface-demo cleanup")
+        client.ensure_schema_role(role, databases)
+        removed.extend(
+            drop_sql_schemas(
+                schema_builder_uri(cluster_srv_host(cluster), username, sql_password),
+                databases,
+            )
+        )
         client.delete_database_user(username)
         client.delete_schema_role(role)
-        client.disable_sql_interface(cluster)
+        client.disable_sql_interface(cluster_name)
         removed += [f"Database user {username}", f"Custom role {role}", "SQL Interface (turned OFF)"]
     else:
         kept += [
-            "SQL Interface and the demo database user (use --purge-atlas to remove them)",
+            "SQL Interface, the demo database user, and __sql_schemas (use --purge-atlas to remove them)",
         ]
 
     banner("Destroy finished")
@@ -204,9 +216,18 @@ def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
     print(flush=True)
 
 
-def _prepare_runtime_config(config: Config, output: Path) -> Config:
-    sql_password = resolve_password(config.sql_password, output, "sql-password")
-    vm_password = resolve_password(config.vm_admin_password, output, "vm-password")
+def _existing_sql_password(supplied: str) -> str:
+    if supplied:
+        return supplied
+    raise RuntimeError(
+        "Set SQL_PASSWORD to the password printed at the end of setup "
+        "so cleanup can sign in and remove __sql_schemas."
+    )
+
+
+def _prepare_runtime_config(config: Config) -> Config:
+    sql_password = resolve_password(config.sql_password)
+    vm_password = resolve_password(config.vm_admin_password)
     rdp_source = config.rdp_source_cidr
     if not config.skip_vm and not rdp_source:
         rdp_source = f"{_public_ip()}/32"

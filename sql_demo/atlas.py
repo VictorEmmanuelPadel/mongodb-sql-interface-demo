@@ -472,7 +472,7 @@ class AtlasCli:
 def schema_privileges(databases: tuple[str, ...]) -> list[str]:
     privileges: list[str] = []
     for database in databases:
-        for action in ("FIND", "INSERT", "UPDATE"):
+        for action in ("FIND", "INSERT", "UPDATE", "DROP_COLLECTION"):
             privileges.append(f"{action}@{database}.__sql_schemas")
     return privileges
 

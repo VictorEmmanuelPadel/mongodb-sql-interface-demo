@@ -8,7 +8,6 @@ import secrets
 import string
 from collections.abc import Mapping
 from dataclasses import dataclass
-from pathlib import Path
 
 
 class ConfigError(ValueError):
@@ -35,20 +34,9 @@ def generate_password(length: int = 24) -> str:
     return "".join(chars)
 
 
-def resolve_password(supplied: str, output_dir: Path, name: str) -> str:
-    """Use the supplied password, otherwise reuse or generate one."""
-    if supplied:
-        return supplied
-    path = output_dir / name
-    if path.exists():
-        existing = path.read_text(encoding="utf-8").strip()
-        if existing:
-            return existing
-    output_dir.mkdir(parents=True, exist_ok=True)
-    password = generate_password()
-    path.write_text(password + "\n", encoding="utf-8")
-    path.chmod(0o600)
-    return password
+def resolve_password(supplied: str) -> str:
+    """Use the supplied password, otherwise generate one."""
+    return supplied or generate_password()
 
 
 def validate_vm_password(password: str) -> None:
