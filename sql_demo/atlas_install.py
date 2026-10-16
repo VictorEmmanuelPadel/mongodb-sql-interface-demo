@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from sql_demo.atlas import AtlasError
-from sql_demo.logutil import log
+from sql_demo.logutil import log, show_command
 
 _INSTALL_DOCS = "https://www.mongodb.com/docs/atlas/cli/current/install-atlas-cli/"
 
@@ -84,7 +84,7 @@ def _is_logged_in(logged_in: Callable[[], bool] | None) -> bool:
 
 
 def _run(command: list[str], run: Callable[[list[str]], int] | None) -> int:
-    log("atlas", " ".join(command))
+    show_command("atlas", " ".join(command))
     if run is not None:
         return run(command)
     return subprocess.run(command, check=False).returncode

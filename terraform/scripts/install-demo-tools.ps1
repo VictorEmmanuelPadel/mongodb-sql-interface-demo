@@ -30,6 +30,35 @@ function Assert-Exit([int]$Code, [string]$Step) {
     }
 }
 
+function Ensure-UserProfile([string]$User) {
+    $sid = (New-Object System.Security.Principal.NTAccount($User)).Translate(
+        [System.Security.Principal.SecurityIdentifier]).Value
+    $profileKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid"
+    if (Test-Path $profileKey) {
+        $existing = (Get-ItemProperty $profileKey).ProfileImagePath
+        if ($existing -and (Test-Path $existing)) {
+            return $existing
+        }
+    }
+    if (-not ('UserEnvProfile' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class UserEnvProfile {
+    [DllImport("userenv.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern int CreateProfile(string sid, string userName, StringBuilder profilePath, uint capacity);
+}
+'@
+    }
+    $path = New-Object System.Text.StringBuilder 260
+    $result = [UserEnvProfile]::CreateProfile($sid, $User, $path, [uint32]$path.Capacity)
+    if ($result -ne 0) {
+        throw "Could not create the Windows profile for $User. Error 0x$($result.ToString('X8'))"
+    }
+    return $path.ToString()
+}
+
 if (-not $env:SCHEMA_URL -or -not $env:ADMIN_USER) {
     throw 'SCHEMA_URL and ADMIN_USER must be set.'
 }
@@ -69,10 +98,12 @@ if (-not (Test-Path $powerBi)) {
 New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Power BI Desktop' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Power BI Desktop' -Name 'TrustedCertificateThumbprints' -PropertyType MultiString -Value @('8E255070BD89A7249A5B2EC5CF22BF6D84BDF80F') -Force | Out-Null
 
-$connectorDir = "C:\Users\$($env:ADMIN_USER)\Documents\Power BI Desktop\Custom Connectors"
-if (-not (Test-Path $connectorDir)) {
-    throw "Power BI did not create $connectorDir"
-}
+# The silent Power BI install runs as SYSTEM, before this account has signed in,
+# so it does not create the per-user Custom Connectors folder.
+Write-Output "Creating the Windows profile for $($env:ADMIN_USER)"
+$profilePath = Ensure-UserProfile $env:ADMIN_USER
+$connectorDir = Join-Path $profilePath 'Documents\Power BI Desktop\Custom Connectors'
+New-Item -ItemType Directory -Force -Path $connectorDir | Out-Null
 Write-Output 'Installing the MongoDB Power BI connector'
 $connector = Join-Path $connectorDir 'MongoDBAtlasODBC.pqx'
 Get-File 'https://downloads.mongodb.org/mongo-powerbi-connector/MongoDBAtlasODBC-1.2.2.pqx' $connector

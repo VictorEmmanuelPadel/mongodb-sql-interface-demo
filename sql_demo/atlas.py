@@ -22,7 +22,7 @@ from urllib.parse import quote
 
 import requests
 
-from sql_demo.logutil import log
+from sql_demo.logutil import log, ok, show_command
 from sql_demo.uriutil import access_list_entry, cluster_host
 
 PREVIEW_ACCEPT = "application/vnd.atlas.preview+json"
@@ -117,7 +117,7 @@ class AtlasCli:
         status = self.sql_status(cluster_name)
         self._require_supported(status)
         if status.get("status") == "ON":
-            log("atlas", "SQL Interface is already ON.")
+            ok("atlas", "SQL Interface is already ON.")
             return status
 
         log("atlas", "Turning the SQL Interface ON. Propagation can take a few minutes.")
@@ -136,7 +136,7 @@ class AtlasCli:
         while time.time() < deadline:
             current = self.sql_status(cluster_name)
             if current.get("status") == "ON":
-                log("atlas", "SQL Interface status is ON.")
+                ok("atlas", "SQL Interface is ON.")
                 return current
             log("atlas", f"SQL Interface status is {current.get('status', 'unknown')}. Waiting.")
             time.sleep(15)
@@ -147,7 +147,7 @@ class AtlasCli:
 
     def disable_sql_interface(self, cluster_name: str) -> None:
         self._set_sql_status(cluster_name, "OFF")
-        log("atlas", "SQL Interface status set to OFF.")
+        ok("atlas", "SQL Interface is OFF.")
 
     def ensure_schema_role(self, role_name: str, databases: tuple[str, ...]) -> None:
         privileges = schema_privileges(databases)
@@ -163,7 +163,7 @@ class AtlasCli:
             ]
         )
         if created.code == 0:
-            log("atlas", f"Created custom role {role_name}.")
+            ok("atlas", f"Created custom role {role_name}.")
             return
         if not _is_conflict(created.text):
             _raise_cli(created)
@@ -180,7 +180,7 @@ class AtlasCli:
             check=True,
         )
         del updated
-        log("atlas", f"Updated custom role {role_name}.")
+        ok("atlas", f"Updated custom role {role_name}.")
 
     def ensure_database_user(
         self,
@@ -209,7 +209,7 @@ class AtlasCli:
             ]
         )
         if created.code == 0:
-            log("atlas", f"Created database user {username}.")
+            ok("atlas", f"Created database user {username}.")
             return
         if not _is_conflict(created.text):
             _raise_cli(created)
@@ -227,7 +227,7 @@ class AtlasCli:
             ],
             check=True,
         )
-        log("atlas", f"Updated database user {username}.")
+        ok("atlas", f"Updated database user {username}.")
 
     def allow_current_ip(self, comment: str) -> None:
         result = self._run(
@@ -243,10 +243,10 @@ class AtlasCli:
             ]
         )
         if result.code == 0:
-            log("atlas", "Allowed this machine through the cluster firewall.")
+            ok("atlas", "Allowed this machine through the cluster firewall.")
             return
         if _is_conflict(result.text):
-            log("atlas", "This machine is already allowed through the cluster firewall.")
+            ok("atlas", "This machine is already allowed through the cluster firewall.")
             return
         _raise_cli(result)
 
@@ -274,9 +274,9 @@ class AtlasCli:
                 ]
             )
             if result.code == 0:
-                log("atlas", f"Allowed {target} through the cluster firewall.")
+                ok("atlas", f"Allowed {target} through the cluster firewall.")
             elif _is_conflict(result.text):
-                log("atlas", f"{target} is already allowed through the cluster firewall.")
+                ok("atlas", f"{target} is already allowed through the cluster firewall.")
             else:
                 _raise_cli(result)
 
@@ -287,21 +287,21 @@ class AtlasCli:
             ["accessLists", "delete", str(target), "--force", *self._project_flags()]
         )
         if result.code == 0 or _is_missing(result.text):
-            log("atlas", f"Removed {target} from the cluster firewall.")
+            ok("atlas", f"Removed {target} from the cluster firewall.")
             return
         _raise_cli(result)
 
     def delete_database_user(self, username: str) -> None:
         result = self._run(["dbusers", "delete", username, "--force", *self._project_flags()])
         if result.code == 0 or _is_missing(result.text):
-            log("atlas", f"Removed database user {username}.")
+            ok("atlas", f"Removed database user {username}.")
             return
         _raise_cli(result)
 
     def delete_schema_role(self, role_name: str) -> None:
         result = self._run(["customDbRoles", "delete", role_name, "--force", *self._project_flags()])
         if result.code == 0 or _is_missing(result.text):
-            log("atlas", f"Removed custom role {role_name}.")
+            ok("atlas", f"Removed custom role {role_name}.")
             return
         _raise_cli(result)
 
@@ -434,7 +434,7 @@ class AtlasCli:
     ) -> CliResult:
         if self.profile:
             args = [*args, "--profile", self.profile]
-        log("atlas", _display(args))
+        show_command("atlas", _display(args))
         if self._runner is not None:
             result = self._runner(args, stdin)
         else:

@@ -9,7 +9,7 @@ import time
 import requests
 
 from sql_demo.config import Config
-from sql_demo.logutil import log
+from sql_demo.logutil import ok, warn
 from sql_demo.terraform_runner import VmInfo
 
 _API_VERSION = "2024-03-01"
@@ -43,9 +43,9 @@ def publish_demo_files(config: Config, vm: VmInfo, files: dict[str, str]) -> Non
             if not operation:
                 raise RuntimeError("Azure accepted the command without an operation URL.")
             _wait_for_operation(operation, token)
-        log("azure", "Wrote the connection guide to the VM desktop.")
+        ok("azure", "Wrote the connection guide to the VM desktop.")
     except Exception as exc:
-        log(
+        warn(
             "azure",
             "Could not copy the guide onto the VM desktop. "
             f"Use output/demo-connection.txt instead. {exc}",

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -18,6 +17,7 @@ from dotenv import load_dotenv
 from sql_demo.atlas import AtlasError
 from sql_demo.azure_cli import AzureCliError
 from sql_demo.config import Config, ConfigError
+from sql_demo.logutil import error
 from sql_demo.orchestrator import destroy, setup
 from sql_demo.terraform_runner import TerraformError
 
@@ -60,10 +60,10 @@ def main(argv: list[str] | None = None) -> int:
         else:
             destroy(config, root, purge_atlas=args.purge_atlas)
     except ConfigError as exc:
-        print(f"Configuration error: {exc}", file=sys.stderr)
+        error(f"Configuration error: {exc}")
         return 1
     except (AtlasError, AzureCliError, TerraformError, TimeoutError, RuntimeError, requests.RequestException) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        error(f"Error: {exc}")
         return 1
     return 0
 

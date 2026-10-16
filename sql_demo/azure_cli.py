@@ -8,7 +8,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from sql_demo.logutil import log
+from sql_demo.logutil import log, show_command
 
 _INSTALL_DOCS = "https://learn.microsoft.com/cli/azure/install-azure-cli"
 _DEB_INSTALL = "curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash"
@@ -104,7 +104,7 @@ def _is_signed_in(signed_in: Callable[[], bool] | None) -> bool:
 
 
 def _run(command: list[str], run: Callable[[list[str]], int] | None) -> int:
-    log("azure", " ".join(command))
+    show_command("azure", " ".join(command))
     if run is not None:
         return run(command)
     return subprocess.run(command, check=False).returncode

@@ -53,7 +53,9 @@ def test_vm_install_script_has_no_terraform_interpolation() -> None:
     assert "https://downloads.mongodb.org/mongosql-odbc-driver/windows/3.0.0/release/mongoodbc-3.0.0.msi" in script
     assert "PBIDesktopSetup_x64.exe" in script
     assert "https://downloads.mongodb.org/mongo-powerbi-connector/MongoDBAtlasODBC-1.2.2.pqx" in script
-    assert "New-Item -ItemType Directory -Force -Path $connectorDir" not in script
+    assert "New-Item -ItemType Directory -Force -Path $connectorDir" in script
+    assert "Microsoft Power BI Desktop\\Custom Connectors" not in script
+    assert "Public\\Documents" not in script
 
 
 def test_vm_script_embeds_utf8_text() -> None:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
@@ -14,7 +14,7 @@ from sql_demo.azure_cli import current_subscription_id, ensure_azure_cli
 from sql_demo.azure_run import publish_demo_files
 from sql_demo.config import Config, resolve_password
 from sql_demo.downloads import resolve_artifacts
-from sql_demo.logutil import log
+from sql_demo.logutil import Steps, banner, details, log, note, ok, warn
 from sql_demo.mac_remote import ensure_mac_remote_desktop
 from sql_demo.schema_build import (
     download_schema_manager,
@@ -29,63 +29,62 @@ from sql_demo.vm_guide import render_guide, sample_sql
 def setup(config: Config, root: Path) -> None:
     output = root / "output"
     output.mkdir(parents=True, exist_ok=True)
+    banner("MongoDB SQL Interface demo · setup")
+    steps = Steps(
+        ["Check the Atlas cluster", "Configure Atlas"]
+        + ([] if config.skip_vm else ["Prepare this computer", "Create the Windows VM"])
+        + ([] if config.skip_schema else ["Build the SQL schema"])
+        + ["Write the connection guide"]
+    )
     config = _prepare_runtime_config(config, output)
 
+    steps.next()
     client = _atlas(config)
     client.ensure_login()
     cluster = client.get_cluster(config.atlas_cluster_name)
     _require_ready_cluster(cluster)
     status = client.sql_status(config.atlas_cluster_name)
-    version = cluster.get("mongoDBVersion", "unknown")
-    log("atlas", f"Cluster {config.atlas_cluster_name} is MongoDB {version}.")
-    log("atlas", f"SQL Interface status={status.get('status')} supported={status.get('supported')}.")
-    if status.get("unsupportedReason"):
-        log("atlas", f"Unsupported reason: {status['unsupportedReason']}.")
-    log("atlas", f"Database: {config.primary_database}")
-    client._require_supported(status)
     host = cluster_srv_host(cluster)
-    log("atlas", f"Cluster host is {host}.")
-
+    rows = [
+        ("Cluster", config.atlas_cluster_name),
+        ("MongoDB", str(cluster.get("mongoDBVersion", "unknown"))),
+        ("Host", host),
+        ("SQL Interface", f"{status.get('status')} (supported: {status.get('supported')})"),
+        ("Database", ", ".join(config.databases)),
+    ]
+    if status.get("unsupportedReason"):
+        rows.append(("Unsupported", str(status["unsupportedReason"])))
+    details("Cluster", rows)
+    client._require_supported(status)
     artifacts = resolve_artifacts()
-    log("atlas", "Resolved the schema builder download.")
 
-    runner: TerraformRunner | None = None
-    apply_process = None
+    steps.next()
+    _configure_atlas(client, config)
+    ok("atlas", "Atlas is configured.")
+
+    vm: VmInfo | None = None
     if not config.skip_vm:
+        steps.next()
+        log("azure", f"Remote Desktop will be limited to {config.rdp_source_cidr}.")
         ensure_mac_remote_desktop()
         ensure_azure_cli(require_login=True)
         config = replace(config, azure_subscription_id=current_subscription_id())
+
+        steps.next()
+        log("azure", "Planning the Windows VM. Power BI installs during this step.")
+        note("This step can take up to 30 minutes.")
         runner = TerraformRunner(config, artifacts, root / "terraform")
-        log("azure", "Planning the Windows VM. Power BI installation runs during apply.")
-        apply_process = runner.start_apply()
-
-    try:
-        _configure_atlas(client, config)
-    except Exception:
-        if apply_process is not None and apply_process.poll() is None:
-            log("azure", "Stopping the Terraform apply because Atlas setup failed.")
-            apply_process.terminate()
-            try:
-                apply_process.wait(timeout=60)
-            except subprocess.TimeoutExpired:
-                apply_process.kill()
-                apply_process.wait(timeout=30)
-        if runner is not None:
-            runner._delete_plan()
-        raise
-
-    vm: VmInfo | None = None
-    if runner is not None and apply_process is not None:
         try:
-            vm = runner.finish_apply(apply_process)
+            vm = runner.finish_apply(runner.start_apply())
         except TerraformError:
-            log(
+            warn(
                 "azure",
                 "Terraform failed after Atlas was updated. Re-run setup after fixing "
                 "Azure, or run destroy to remove a partial VM.",
             )
             raise
-        log("azure", f"VM public IP is {vm.public_ip}.")
+        print(flush=True)
+        ok("azure", f"Windows VM is ready at {vm.public_ip}.")
         client.ensure_access_entries([(vm.public_ip, "sql-interface-demo Power BI VM")])
 
     _write_state(output, config, vm)
@@ -93,6 +92,7 @@ def setup(config: Config, root: Path) -> None:
 
     schemas: list[dict] = []
     if not config.skip_schema:
+        steps.next()
         binary = download_schema_manager(
             artifacts.schema_manager_url,
             root / ".tools" / "mongodb-schema-manager",
@@ -107,10 +107,12 @@ def setup(config: Config, root: Path) -> None:
             timeout_seconds=3600,
         )
         schemas = verify_schemas(credential_uri, config.databases)
+        ok("schema", f"Wrote {len(schemas)} collection schemas:")
         for row in schemas:
             flag = " (unstable)" if row["unstable"] else ""
-            log("schema", f"{row['database']}.{row['collection']}{flag}")
+            log("schema", f"  • {row['database']}.{row['collection']}{flag}")
 
+    steps.next()
     guide = render_guide(
         config,
         host=host,
@@ -126,7 +128,7 @@ def setup(config: Config, root: Path) -> None:
     connection.write_text(guide, encoding="utf-8")
     connection.chmod(0o600)
     (output / "sample-queries.sql").write_text(queries, encoding="utf-8")
-    log("setup", f"Wrote {connection}.")
+    ok("setup", f"Wrote {connection.relative_to(root)} and sample-queries.sql.")
 
     if vm is not None:
         publish_demo_files(
@@ -138,20 +140,44 @@ def setup(config: Config, root: Path) -> None:
                 r"C:\SQLInterfaceDemo\sample-queries.sql": queries,
             },
         )
-        log("setup", f"RDP to {vm.public_ip} as {config.vm_admin_username}.")
-        log("setup", f"Windows password: {config.vm_admin_password}")
-        log("setup", f"Remote Desktop is allowed from {config.rdp_source_cidr}.")
 
-    log("setup", f"Power BI database user: {config.sql_username}")
-    log("setup", f"Power BI password: {config.sql_password}")
-    log("setup", f"Power BI URI: {power_bi_uri(host)}")
-    log("setup", f"Database: {config.primary_database}")
+    banner("Demo is ready")
+    if vm is not None:
+        details(
+            "Remote Desktop to the Windows VM",
+            [
+                ("Address", vm.public_ip),
+                ("Username", config.vm_admin_username),
+                ("Password", config.vm_admin_password),
+                ("Allowed from", config.rdp_source_cidr),
+            ],
+        )
+        if sys.platform == "darwin":
+            note("  Open Windows App from Applications and add the address above.")
+    details(
+        "Power BI: Get data > MongoDB Atlas SQL",
+        [
+            ("MongoDB URI", power_bi_uri(host)),
+            ("Database", config.primary_database),
+            ("Username", config.sql_username),
+            ("Password", config.sql_password),
+        ],
+    )
+    print(flush=True)
+    saved = f"Saved in {connection.relative_to(root)}."
+    note(saved + (" The same guide is on the VM desktop." if vm is not None else ""))
+    print(flush=True)
 
 
 def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
     output = root / "output"
     state = _read_state(output / "state.json")
-    if (root / "terraform" / "terraform.tfstate").exists():
+    has_vm = (root / "terraform" / "terraform.tfstate").exists()
+    banner("MongoDB SQL Interface demo · destroy")
+    steps = Steps((["Delete the Windows VM"] if has_vm else []) + ["Clean up Atlas"])
+    removed: list[str] = []
+    if has_vm:
+        steps.next()
         artifacts = resolve_artifacts(schema_manager_url="https://example.invalid/schema")
         if not config.rdp_source_cidr:
             config = replace(config, rdp_source_cidr="127.0.0.1/32")
@@ -160,8 +186,11 @@ def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
         ensure_azure_cli(require_login=True)
         config = replace(config, azure_subscription_id=current_subscription_id())
         TerraformRunner(config, artifacts, root / "terraform").destroy()
-        log("azure", "Deleted the demo resource group.")
+        print(flush=True)
+        ok("azure", "Deleted the demo resource group.")
+        removed.append("Azure resource group sql-interface-demo-rg and the Windows VM")
 
+    steps.next()
     client = _atlas(config)
     client.ensure_login()
     vm_ip = str(state.get("vm_public_ip") or "")
@@ -169,17 +198,35 @@ def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
         client.delete_access_entry(vm_ip)
         state["vm_public_ip"] = ""
         _write_state_raw(output / "state.json", state)
+        removed.append(f"Cluster firewall entry for the VM ({vm_ip})")
 
-    if not purge_atlas:
-        log("setup", "Left the SQL Interface and database user in place. Use --purge-atlas to remove them.")
-        return
+    kept = [
+        f"Atlas cluster {config.atlas_cluster_name} and its data",
+        "This computer's entry on the cluster firewall",
+    ]
+    if purge_atlas:
+        username = str(state.get("sql_username") or config.sql_username)
+        role = str(state.get("schema_role") or config.schema_role)
+        cluster = str(state.get("atlas_cluster_name") or config.atlas_cluster_name)
+        client.delete_database_user(username)
+        client.delete_schema_role(role)
+        client.disable_sql_interface(cluster)
+        removed += [f"Database user {username}", f"Custom role {role}", "SQL Interface (turned OFF)"]
+    else:
+        kept += [
+            "SQL Interface and the demo database user (use --purge-atlas to remove them)",
+        ]
 
-    username = str(state.get("sql_username") or config.sql_username)
-    role = str(state.get("schema_role") or config.schema_role)
-    cluster = str(state.get("atlas_cluster_name") or config.atlas_cluster_name)
-    client.delete_database_user(username)
-    client.delete_schema_role(role)
-    client.disable_sql_interface(cluster)
+    banner("Destroy finished")
+    print(flush=True)
+    print("  Removed", flush=True)
+    for item in removed or ["Nothing to remove"]:
+        print(f"    ✓ {item}", flush=True)
+    print(flush=True)
+    print("  Kept", flush=True)
+    for item in kept:
+        print(f"    • {item}", flush=True)
+    print(flush=True)
 
 
 def _prepare_runtime_config(config: Config, output: Path) -> Config:
@@ -188,7 +235,6 @@ def _prepare_runtime_config(config: Config, output: Path) -> Config:
     rdp_source = config.rdp_source_cidr
     if not config.skip_vm and not rdp_source:
         rdp_source = f"{_public_ip()}/32"
-        log("azure", f"RDP will be limited to {rdp_source}.")
     return replace(
         config,
         sql_password=sql_password,

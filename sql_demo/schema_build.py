@@ -12,7 +12,7 @@ import requests
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
 
-from sql_demo.logutil import log
+from sql_demo.logutil import log, ok, show_command, warn
 from sql_demo.uriutil import redact_uri
 
 _NETWORK_MARKERS = (
@@ -80,7 +80,7 @@ def run_schema_manager(
         command.extend(["--ns-include", pattern])
 
     shown = [redact_uri(part) if part == uri else part for part in command]
-    log("schema", "Running " + " ".join(shown))
+    show_command("schema", " ".join(shown))
     log(
         "schema",
         "The schema builder reads every document in each included collection. "
@@ -100,12 +100,11 @@ def run_schema_manager(
         output = (completed.stdout or "") + (completed.stderr or "")
         last_output = output
         if completed.returncode == 0:
-            if output.strip():
-                print(output.rstrip(), flush=True)
+            ok("schema", f"Schema builder finished. Its log is in {log_dir}.")
             return output
         elapsed = time.time() - started
         retryable = elapsed < 90 and _looks_like_network(output)
-        log("schema", f"Schema builder exited {completed.returncode}.")
+        warn("schema", f"Schema builder exited {completed.returncode}.")
         if output.strip():
             print(output.rstrip(), flush=True)
         if not retryable or attempt == attempts:
@@ -116,7 +115,7 @@ def run_schema_manager(
                     "and find/insert/update on __sql_schemas."
                 )
             raise RuntimeError(f"Schema builder failed.{hint}")
-        log("schema", f"Cluster firewall may still be propagating. Retry {attempt}/{attempts}.")
+        warn("schema", f"Cluster firewall may still be propagating. Retry {attempt}/{attempts}.")
         time.sleep(15)
     raise RuntimeError(f"Schema builder failed.\n{last_output}")
 

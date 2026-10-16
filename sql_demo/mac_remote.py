@@ -8,7 +8,7 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
-from sql_demo.logutil import log
+from sql_demo.logutil import log, ok, show_command, warn
 
 _APP_STORE = "https://apps.apple.com/app/windows-app/id1295203466"
 _APP_NAMES = ("Windows App.app", "Microsoft Remote Desktop.app")
@@ -25,22 +25,22 @@ def ensure_mac_remote_desktop(
     if (platform or sys.platform) != "darwin":
         return
     if (installed or _app_installed)():
-        log("setup", "Windows App is already installed.")
+        ok("setup", "Windows App is already installed.")
         return
     finder = which or shutil.which
     if finder("brew") is None:
-        log("setup", f"Install Windows App from the Mac App Store to open the VM: {_APP_STORE}")
+        warn("setup", f"Install Windows App from the Mac App Store to open the VM: {_APP_STORE}")
         return
     log("setup", "Installing Windows App so you can open the VM. macOS may ask for your password.")
     code = _run(["brew", "install", "--cask", "windows-app"], run)
     if code != 0 or not (installed or _app_installed)():
-        log(
+        warn(
             "setup",
             "Could not install Windows App automatically. "
             f"Install it from the Mac App Store: {_APP_STORE}",
         )
         return
-    log("setup", "Windows App is installed. Add the VM address there after setup finishes.")
+    ok("setup", "Windows App is installed. Add the VM address there after setup finishes.")
 
 
 def _app_installed() -> bool:
@@ -49,7 +49,7 @@ def _app_installed() -> bool:
 
 
 def _run(command: list[str], run: Callable[[list[str]], int] | None) -> int:
-    log("setup", " ".join(command))
+    show_command("setup", " ".join(command))
     if run is not None:
         return run(command)
     return subprocess.run(command, check=False).returncode
