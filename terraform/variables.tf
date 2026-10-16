@@ -45,16 +45,6 @@ variable "name_prefix" {
   type        = string
 }
 
-variable "odbc_url" {
-  description = "Direct download URL for the MongoDB ODBC driver MSI."
-  type        = string
-}
-
-variable "connector_url" {
-  description = "Direct download URL for the Power BI connector pqx file."
-  type        = string
-}
-
 variable "schema_manager_windows_url" {
   description = "Direct download URL for the Windows schema builder executable."
   type        = string

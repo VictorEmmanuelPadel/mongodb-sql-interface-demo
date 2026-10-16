@@ -26,7 +26,11 @@ from sql_demo.uriutil import power_bi_uri, schema_builder_uri
 from sql_demo.vm_guide import render_guide, sample_sql
 
 
-def check(config: Config) -> None:
+def setup(config: Config, root: Path) -> None:
+    output = root / "output"
+    output.mkdir(parents=True, exist_ok=True)
+    config = _prepare_runtime_config(config, output)
+
     client = _atlas(config)
     client.ensure_login()
     cluster = client.get_cluster(config.atlas_cluster_name)
@@ -38,23 +42,12 @@ def check(config: Config) -> None:
     if status.get("unsupportedReason"):
         log("atlas", f"Unsupported reason: {status['unsupportedReason']}.")
     log("atlas", f"Database: {config.primary_database}")
-
-
-def setup(config: Config, root: Path) -> None:
-    output = root / "output"
-    output.mkdir(parents=True, exist_ok=True)
-    config = _prepare_runtime_config(config, output)
-
-    client = _atlas(config)
-    client.ensure_login()
-    cluster = client.get_cluster(config.atlas_cluster_name)
-    _require_ready_cluster(cluster)
-    client._require_supported(client.sql_status(config.atlas_cluster_name))
+    client._require_supported(status)
     host = cluster_srv_host(cluster)
     log("atlas", f"Cluster host is {host}.")
 
     artifacts = resolve_artifacts()
-    log("atlas", "Resolved ODBC, Power BI connector, and schema builder downloads.")
+    log("atlas", "Resolved the schema builder download.")
 
     runner: TerraformRunner | None = None
     apply_process = None
@@ -159,11 +152,7 @@ def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
     output = root / "output"
     state = _read_state(output / "state.json")
     if (root / "terraform" / "terraform.tfstate").exists():
-        artifacts = resolve_artifacts(
-            odbc_driver_url="https://example.invalid/odbc.msi",
-            powerbi_connector_url_override="https://example.invalid/connector.pqx",
-            schema_manager_url="https://example.invalid/schema",
-        )
+        artifacts = resolve_artifacts(schema_manager_url="https://example.invalid/schema")
         if not config.rdp_source_cidr:
             config = replace(config, rdp_source_cidr="127.0.0.1/32")
         if not config.vm_admin_password:

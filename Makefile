@@ -4,13 +4,10 @@ else
 PYTHON := python3
 endif
 
-.PHONY: test check setup destroy
+.PHONY: test setup destroy
 
 test:
 	$(PYTHON) -m pytest -q
-
-check:
-	$(PYTHON) -m sql_demo check
 
 setup:
 	$(PYTHON) -m sql_demo setup

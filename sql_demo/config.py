@@ -87,7 +87,7 @@ class Config:
     sql_password: str = ""
     azure_subscription_id: str = ""
     azure_location: str = "eastus"
-    vm_admin_username: str = "sqladmin"
+    vm_admin_username: str = "sqlInterfaceDemo"
     vm_admin_password: str = ""
     rdp_source_cidr: str = ""
     skip_vm: bool = False
@@ -138,12 +138,12 @@ class Config:
                 "SQL_USERNAME must start with a letter and contain only letters, "
                 "numbers, dots, underscores, or hyphens."
             )
-        vm_username = get("VM_ADMIN_USERNAME", "sqladmin") or "sqladmin"
+        vm_username = get("VM_ADMIN_USERNAME", "sqlInterfaceDemo") or "sqlInterfaceDemo"
         if vm_username.lower() in _RESERVED_WINDOWS_USERS:
             raise ConfigError(f"VM_ADMIN_USERNAME {vm_username!r} is reserved by Windows.")
-        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{2,15}", vm_username):
+        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9]{2,19}", vm_username):
             raise ConfigError(
-                "VM_ADMIN_USERNAME must be 3-16 letters and digits and start with a letter."
+                "VM_ADMIN_USERNAME must be 3-20 letters and digits and start with a letter."
             )
 
         sql_password = get("SQL_PASSWORD")

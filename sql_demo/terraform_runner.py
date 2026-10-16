@@ -110,8 +110,6 @@ def _terraform_env(config: Config, artifacts: Artifacts) -> dict[str, str]:
             "TF_VAR_rdp_source_cidr": config.rdp_source_cidr,
             "TF_VAR_resource_group_name": "sql-interface-demo-rg",
             "TF_VAR_name_prefix": "sqldemo",
-            "TF_VAR_odbc_url": artifacts.odbc_windows_url,
-            "TF_VAR_connector_url": artifacts.powerbi_connector_url,
             "TF_VAR_schema_manager_windows_url": artifacts.schema_manager_windows_url,
         }
     )

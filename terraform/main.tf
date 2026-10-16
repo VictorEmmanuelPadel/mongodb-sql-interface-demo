@@ -1,7 +1,5 @@
 locals {
   bootstrap = <<-EOT
-    $env:ODBC_URL = '${var.odbc_url}'
-    $env:CONNECTOR_URL = '${var.connector_url}'
     $env:SCHEMA_URL = '${var.schema_manager_windows_url}'
     $env:ADMIN_USER = '${var.admin_username}'
     ${file("${path.module}/scripts/install-demo-tools.ps1")}

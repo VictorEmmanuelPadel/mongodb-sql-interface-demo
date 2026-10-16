@@ -31,12 +31,12 @@ def ensure_atlas_cli(
             if code != 0:
                 raise AtlasError(
                     f"{' '.join(command)} exited {code}. "
-                    f"Install the Atlas CLI from {_INSTALL_DOCS} and run check again."
+                    f"Install the Atlas CLI from {_INSTALL_DOCS} and run setup again."
                 )
         if finder("atlas") is None and _known_atlas_binary() is None:
             raise AtlasError(
                 "The Atlas CLI install finished, but `atlas` is not on PATH. "
-                "Open a new terminal and run check again."
+                "Open a new terminal and run setup again."
             )
     if not _is_logged_in(logged_in):
         log("atlas", "Atlas CLI is not signed in. Starting atlas auth login.")
@@ -67,7 +67,7 @@ def install_commands(platform: str, which: Callable[[str], str | None]) -> list[
         ]
     raise AtlasError(
         "The Atlas CLI is not installed, and this system has no supported installer. "
-        f"Install it from {_INSTALL_DOCS} and run check again."
+        f"Install it from {_INSTALL_DOCS} and run setup again."
     )
 
 

@@ -30,19 +30,19 @@ function Assert-Exit([int]$Code, [string]$Step) {
     }
 }
 
-if (-not $env:ODBC_URL -or -not $env:CONNECTOR_URL -or -not $env:SCHEMA_URL -or -not $env:ADMIN_USER) {
-    throw 'ODBC_URL, CONNECTOR_URL, SCHEMA_URL, and ADMIN_USER must be set.'
+if (-not $env:SCHEMA_URL -or -not $env:ADMIN_USER) {
+    throw 'SCHEMA_URL and ADMIN_USER must be set.'
 }
 
 Write-Output 'Installing Microsoft Visual C++ Redistributable'
 $vcRedist = Join-Path $env:TEMP 'vc_redist.x64.exe'
-Get-File 'https://aka.ms/vs/17/release/vc_redist.x64.exe' $vcRedist
+Get-File 'https://aka.ms/vc14/vc_redist.x64.exe' $vcRedist
 $vc = Start-Process -FilePath $vcRedist -ArgumentList '/install','/quiet','/norestart' -Wait -PassThru
 Assert-Exit $vc.ExitCode 'VC++ redistributable'
 
 Write-Output 'Installing MongoDB ODBC driver'
 $odbc = Join-Path $env:TEMP 'mongoodbc.msi'
-Get-File $env:ODBC_URL $odbc
+Get-File 'https://downloads.mongodb.org/mongosql-odbc-driver/windows/3.0.0/release/mongoodbc-3.0.0.msi' $odbc
 $odbcLog = Join-Path $Root 'odbc-install.log'
 $msi = Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/i', $odbc, '/qn', '/norestart', '/l*v', $odbcLog) -Wait -PassThru
 Assert-Exit $msi.ExitCode 'ODBC driver'
@@ -54,71 +54,32 @@ if ($installed.Count -eq 0) {
 }
 Write-Output "ODBC driver registered: $($installed[0].Name)"
 
-Write-Output 'Installing schema builder and Power BI connector'
-Get-File $env:SCHEMA_URL (Join-Path $Root 'mongodb-schema-manager.exe')
-$connectorDir = Join-Path $Root 'connectors'
-New-Item -ItemType Directory -Force -Path $connectorDir | Out-Null
-$connector = Join-Path $connectorDir 'MongoDBAtlasODBC.pqx'
-Get-File $env:CONNECTOR_URL $connector
-Unblock-File -Path $connector
+Write-Output 'Installing Power BI Desktop'
+$powerBiSetup = Join-Path $env:TEMP 'PBIDesktopSetup_x64.exe'
+Get-File 'https://download.microsoft.com/download/8/8/0/880bca75-79dd-466a-927d-1abf1f5454b0/PBIDesktopSetup_x64.exe' $powerBiSetup
+$powerBiInstall = Start-Process -FilePath $powerBiSetup -ArgumentList '-quiet','-norestart','ACCEPT_EULA=1' -Wait -PassThru
+Assert-Exit $powerBiInstall.ExitCode 'Power BI Desktop'
 
-$destinations = @(
-    "C:\Users\$($env:ADMIN_USER)\Documents\Power BI Desktop\Custom Connectors",
-    "C:\Users\$($env:ADMIN_USER)\Documents\Microsoft Power BI Desktop\Custom Connectors",
-    'C:\Users\Public\Documents\Power BI Desktop\Custom Connectors',
-    'C:\Users\Public\Documents\Microsoft Power BI Desktop\Custom Connectors'
-)
-foreach ($destination in $destinations) {
-    New-Item -ItemType Directory -Force -Path $destination | Out-Null
-    Copy-Item $connector (Join-Path $destination 'MongoDBAtlasODBC.pqx') -Force
-    Unblock-File -Path (Join-Path $destination 'MongoDBAtlasODBC.pqx')
+$powerBi = 'C:\Program Files\Microsoft Power BI Desktop\bin\PBIDesktop.exe'
+if (-not (Test-Path $powerBi)) {
+    throw 'Power BI Desktop was not found after installation.'
 }
 
 # Thumbprint published by the MongoDB Power BI connector so Power BI can load it.
 New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Power BI Desktop' -Force | Out-Null
 New-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Power BI Desktop' -Name 'TrustedCertificateThumbprints' -PropertyType MultiString -Value @('8E255070BD89A7249A5B2EC5CF22BF6D84BDF80F') -Force | Out-Null
 
-$copyScript = Join-Path $Root 'copy-connector.ps1'
-@'
-$source = "C:\SQLInterfaceDemo\connectors\MongoDBAtlasODBC.pqx"
-$docs = [Environment]::GetFolderPath("MyDocuments")
-foreach ($relative in @("Power BI Desktop\Custom Connectors", "Microsoft Power BI Desktop\Custom Connectors")) {
-    $target = Join-Path $docs $relative
-    New-Item -ItemType Directory -Force -Path $target | Out-Null
-    Copy-Item $source (Join-Path $target "MongoDBAtlasODBC.pqx") -Force
-    Unblock-File (Join-Path $target "MongoDBAtlasODBC.pqx")
+$connectorDir = "C:\Users\$($env:ADMIN_USER)\Documents\Power BI Desktop\Custom Connectors"
+if (-not (Test-Path $connectorDir)) {
+    throw "Power BI did not create $connectorDir"
 }
-'@ | Set-Content -Path $copyScript -Encoding ASCII
-try {
-    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoProfile -ExecutionPolicy Bypass -File $copyScript"
-    $trigger = New-ScheduledTaskTrigger -AtLogOn
-    $principal = New-ScheduledTaskPrincipal -GroupId 'S-1-5-32-545' -RunLevel Limited
-    Register-ScheduledTask -TaskName 'SQLInterfaceDemoConnector' -Action $action -Trigger $trigger -Principal $principal -Force | Out-Null
-} catch {
-    Write-Output "Could not register the logon task that copies the connector: $($_.Exception.Message)"
-}
+Write-Output 'Installing the MongoDB Power BI connector'
+$connector = Join-Path $connectorDir 'MongoDBAtlasODBC.pqx'
+Get-File 'https://downloads.mongodb.org/mongo-powerbi-connector/MongoDBAtlasODBC-1.2.2.pqx' $connector
+Unblock-File -Path $connector
 
-Write-Output 'Installing Power BI Desktop'
-$choco = 'C:\ProgramData\chocolatey\bin\choco.exe'
-if (-not (Test-Path $choco)) {
-    Set-ExecutionPolicy Bypass -Scope Process -Force
-    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-}
-& $choco install powerbi -y --no-progress --limit-output
-if ($LASTEXITCODE -ne 0) {
-    Write-Output 'Retrying Power BI install without checksum verification'
-    & $choco install powerbi -y --no-progress --limit-output --ignore-checksums
-    Assert-Exit $LASTEXITCODE 'Power BI Desktop'
-}
-
-$powerBi = 'C:\Program Files\Microsoft Power BI Desktop\bin\PBIDesktop.exe'
-if (-not (Test-Path $powerBi)) {
-    $store = Get-ChildItem 'C:\Program Files\WindowsApps\Microsoft.MicrosoftPowerBIDesktop*\bin\PBIDesktop.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($store) { $powerBi = $store.FullName }
-}
-if (-not (Test-Path $powerBi)) {
-    throw 'Power BI Desktop was not found after installation.'
-}
+Write-Output 'Installing the schema builder'
+Get-File $env:SCHEMA_URL (Join-Path $Root 'mongodb-schema-manager.exe')
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut('C:\Users\Public\Desktop\Power BI Desktop.lnk')
 $shortcut.TargetPath = $powerBi

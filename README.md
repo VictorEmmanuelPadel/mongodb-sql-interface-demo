@@ -6,7 +6,7 @@ This project prepares a Power BI demo of the [MongoDB SQL Interface](https://www
 
 ## Run
 
-You need Python 3.11 or later, Terraform 1.6 or later, Project Owner on the Atlas project, and an Azure subscription that can create a Windows VM. `check` installs the Atlas CLI and signs you in. `setup` installs the Azure CLI and signs you in. On a Mac, `setup` also installs Windows App, the Remote Desktop client.
+You need Python 3.11 or later, Terraform 1.6 or later, Project Owner on the Atlas project, and an Azure subscription that can create a Windows VM. `setup` installs the Atlas CLI and the Azure CLI and signs you in to both. On a Mac, it also installs Windows App, the Remote Desktop client. Before it changes anything, it reads the cluster and stops if the cluster is paused or cannot use the SQL Interface.
 
 ```bash
 python3 -m venv .venv
@@ -15,7 +15,17 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Edit `.env`. The first three values are required. The database should already contain a small amount of data.
+From the repository root:
+
+```bash
+python -m sql_demo setup
+```
+
+When setup finishes, the terminal prints the VM address and the Power BI username, password, and URI. The same instructions are in `output/demo-connection.txt` and on the VM desktop.
+
+On a Mac, **Windows App** has been automatically installed as part of the setup process. It is in the Applications folder. This is Microsoft's Remote Desktop client. Use that installed app to connect to the Windows VM.
+
+Edit `.env` before you run setup. The first three values are required. The database should already contain a small amount of data.
 
 | Variable | Required | Default | What it sets |
 | --- | --- | --- | --- |
@@ -24,20 +34,9 @@ Edit `.env`. The first three values are required. The database should already co
 | `ATLAS_DATABASE` | Yes | `sample_mflix` | Database exposed to Power BI. Separate more than one name with commas. |
 | `SQL_USERNAME` | | `sql-demo` | Atlas database user for the schema builder and Power BI. |
 | `SQL_PASSWORD` | | Generated | Password for that database user. Blank generates one in `output/sql-password` and reuses it. |
-| `VM_ADMIN_USERNAME` | | `sqladmin` | Local Windows account for Remote Desktop. 3–16 letters and digits. `admin`, `administrator`, `guest`, `root`, `user`, and `azure` are reserved. |
+| `VM_ADMIN_USERNAME` | | `sqlInterfaceDemo` | Local Windows account for Remote Desktop. 3–20 letters and digits. `admin`, `administrator`, `guest`, `root`, `user`, and `azure` are reserved. |
 | `VM_ADMIN_PASSWORD` | | Generated | Windows password. Blank generates one in `output/vm-password` and reuses it. A password you set must be 12–123 characters and include three of lowercase, uppercase, digit, and symbol. |
 | `AZURE_LOCATION` | | `eastus` | Azure region for the VM, such as `eastus` or `westus2`. |
-
-From the repository root:
-
-```bash
-python -m sql_demo check
-python -m sql_demo setup
-```
-
-When setup finishes, the terminal prints the VM address and the Power BI username, password, and URI. The same instructions are in `output/demo-connection.txt` and on the VM desktop.
-
-On a Mac, **Windows App** has been automatically installed as part of the setup process. It is in the Applications folder. This is Microsoft's Remote Desktop client. Use that installed app to connect to the Windows VM.
 
 ## Connect
 

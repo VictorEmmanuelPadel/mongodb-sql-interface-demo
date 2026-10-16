@@ -1,6 +1,5 @@
 """Command line entry point.
 
-    python -m sql_demo check
     python -m sql_demo setup
     python -m sql_demo destroy
 """
@@ -19,7 +18,7 @@ from dotenv import load_dotenv
 from sql_demo.atlas import AtlasError
 from sql_demo.azure_cli import AzureCliError
 from sql_demo.config import Config, ConfigError
-from sql_demo.orchestrator import check, destroy, setup
+from sql_demo.orchestrator import destroy, setup
 from sql_demo.terraform_runner import TerraformError
 
 
@@ -29,8 +28,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--env", default=".env", help="Path to the env file. Defaults to .env.")
     subparsers = parser.add_subparsers(dest="command", required=True)
-
-    subparsers.add_parser("check", help="Verify Atlas credentials and whether the cluster supports SQL.")
 
     setup_parser = subparsers.add_parser("setup", help="Enable SQL, create the database user, and build the VM.")
     setup_parser.add_argument("--skip-vm", action="store_true", help="Configure Atlas only.")
@@ -51,9 +48,7 @@ def main(argv: list[str] | None = None) -> int:
         _load_environment(Path(args.env))
         skip_vm = bool(getattr(args, "skip_vm", False))
         config = Config.from_env()
-        if args.command == "check":
-            check(config)
-        elif args.command == "setup":
+        if args.command == "setup":
             updates = {}
             if skip_vm:
                 updates["skip_vm"] = True

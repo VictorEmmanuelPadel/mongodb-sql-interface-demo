@@ -20,6 +20,7 @@ def test_config_accepts_a_complete_env() -> None:
     assert config.primary_database == "sample_mflix"
     assert config.schema_ns_include == ("sample_mflix.*",)
     assert config.sql_username == "sql-demo"
+    assert config.vm_admin_username == "sqlInterfaceDemo"
     assert config.azure_location == "eastus"
     assert config.sql_password == ""
     assert config.vm_admin_password == ""
