@@ -14,9 +14,9 @@ def test_vm_install_script_has_no_terraform_interpolation() -> None:
     script = Path("terraform/scripts/install-demo-tools.ps1").read_text(encoding="utf-8")
     assert "${" not in script
     assert "https://aka.ms/vc14/vc_redist.x64.exe" in script
-    assert "https://downloads.mongodb.org/mongosql-odbc-driver/windows/3.0.0/release/mongoodbc-3.0.0.msi" in script
+    assert "$env:ODBC_URL" in script
     assert "PBIDesktopSetup_x64.exe" in script
-    assert "https://downloads.mongodb.org/mongo-powerbi-connector/MongoDBAtlasODBC-1.2.2.pqx" in script
+    assert "$env:CONNECTOR_URL" in script
     assert "New-Item -ItemType Directory -Force -Path $connectorDir" in script
     assert "Microsoft Power BI Desktop\\Custom Connectors" not in script
     assert "Public\\Documents" not in script

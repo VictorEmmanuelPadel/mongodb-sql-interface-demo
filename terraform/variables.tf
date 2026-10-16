@@ -9,7 +9,7 @@ variable "location" {
 }
 
 variable "vm_size" {
-  description = "Azure VM size. The demo uses Standard_D4s_v5."
+  description = "Azure VM size. The demo uses Standard_D8s_v5."
   type        = string
 }
 
@@ -42,6 +42,16 @@ variable "resource_group_name" {
 
 variable "name_prefix" {
   description = "Prefix for Azure resource names inside the resource group."
+  type        = string
+}
+
+variable "odbc_url" {
+  description = "Direct download URL for the MongoDB ODBC driver MSI."
+  type        = string
+}
+
+variable "connector_url" {
+  description = "Direct download URL for the Power BI connector pqx file."
   type        = string
 }
 

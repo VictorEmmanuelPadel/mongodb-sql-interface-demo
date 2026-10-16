@@ -103,13 +103,15 @@ def _terraform_env(config: Config, artifacts: Artifacts) -> dict[str, str]:
             "ARM_SUBSCRIPTION_ID": config.azure_subscription_id,
             "TF_VAR_subscription_id": config.azure_subscription_id,
             "TF_VAR_location": config.azure_location,
-            "TF_VAR_vm_size": "Standard_D4s_v5",
+            "TF_VAR_vm_size": "Standard_D8s_v5",
             "TF_VAR_windows_sku": "win11-24h2-pro",
             "TF_VAR_admin_username": config.vm_admin_username,
             "TF_VAR_admin_password": config.vm_admin_password,
             "TF_VAR_rdp_source_cidr": config.rdp_source_cidr,
             "TF_VAR_resource_group_name": "sql-interface-demo-rg",
             "TF_VAR_name_prefix": "sqldemo",
+            "TF_VAR_odbc_url": artifacts.odbc_windows_url,
+            "TF_VAR_connector_url": artifacts.powerbi_connector_url,
             "TF_VAR_schema_manager_windows_url": artifacts.schema_manager_windows_url,
         }
     )

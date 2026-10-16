@@ -12,9 +12,13 @@ import requests
 from sql_demo.atlas import AtlasCli, cluster_srv_host
 from sql_demo.azure_cli import current_subscription_id, ensure_azure_cli
 from sql_demo.config import Config, resolve_password
-from sql_demo.downloads import resolve_artifacts
+from sql_demo.downloads import FALLBACK_ODBC_WINDOWS, FALLBACK_POWERBI, resolve_artifacts
 from sql_demo.logutil import Steps, banner, details, log, note, ok, warn
-from sql_demo.mac_remote import ensure_mac_remote_desktop
+from sql_demo.mac_remote import (
+    ensure_mac_remote_desktop,
+    open_windows_connection,
+    remove_windows_connection,
+)
 from sql_demo.schema_build import (
     download_schema_manager,
     drop_sql_schemas,
@@ -71,6 +75,8 @@ def setup(config: Config, root: Path) -> None:
         config = replace(config, azure_subscription_id=current_subscription_id())
 
         steps.next()
+        log("azure", f"ODBC driver: {artifacts.odbc_windows_url}")
+        log("azure", f"Power BI connector: {artifacts.powerbi_connector_url}")
         log("azure", "Planning the Windows VM. Power BI installs during this step.")
         note("This step can take up to 30 minutes.")
         runner = TerraformRunner(config, artifacts, root / "terraform")
@@ -132,7 +138,11 @@ def setup(config: Config, root: Path) -> None:
             ],
         )
         if sys.platform == "darwin":
-            note("  Open Windows App from Applications and add the address above.")
+            open_windows_connection(
+                host=vm.public_ip,
+                username=config.vm_admin_username,
+                password=config.vm_admin_password,
+            )
     details(
         "Power BI: Get data > MongoDB Atlas SQL",
         [
@@ -154,7 +164,11 @@ def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
     removed: list[str] = []
     if has_vm:
         steps.next()
-        artifacts = resolve_artifacts(schema_manager_url="https://example.invalid/schema")
+        artifacts = resolve_artifacts(
+            schema_manager_url="https://example.invalid/schema",
+            odbc_driver_url=FALLBACK_ODBC_WINDOWS,
+            powerbi_connector_url=FALLBACK_POWERBI,
+        )
         if not config.rdp_source_cidr:
             config = replace(config, rdp_source_cidr="127.0.0.1/32")
         if not config.vm_admin_password:
@@ -165,6 +179,9 @@ def destroy(config: Config, root: Path, *, purge_atlas: bool) -> None:
         print(flush=True)
         ok("azure", "Deleted the demo resource group.")
         removed.append("Azure resource group sql-interface-demo-rg and the Windows VM")
+
+    if remove_windows_connection():
+        removed.append("SQL Interface Demo PC in Windows App")
 
     steps.next()
     client = _atlas(config)

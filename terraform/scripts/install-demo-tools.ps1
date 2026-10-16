@@ -59,8 +59,8 @@ public static class UserEnvProfile {
     return $path.ToString()
 }
 
-if (-not $env:SCHEMA_URL -or -not $env:ADMIN_USER) {
-    throw 'SCHEMA_URL and ADMIN_USER must be set.'
+if (-not $env:SCHEMA_URL -or -not $env:ODBC_URL -or -not $env:CONNECTOR_URL -or -not $env:ADMIN_USER) {
+    throw 'ODBC_URL, CONNECTOR_URL, SCHEMA_URL, and ADMIN_USER must be set.'
 }
 
 Write-Output 'Installing Microsoft Visual C++ Redistributable'
@@ -71,7 +71,7 @@ Assert-Exit $vc.ExitCode 'VC++ redistributable'
 
 Write-Output 'Installing MongoDB ODBC driver'
 $odbc = Join-Path $env:TEMP 'mongoodbc.msi'
-Get-File 'https://downloads.mongodb.org/mongosql-odbc-driver/windows/3.0.0/release/mongoodbc-3.0.0.msi' $odbc
+Get-File $env:ODBC_URL $odbc
 $odbcLog = Join-Path $Root 'odbc-install.log'
 $msi = Start-Process -FilePath 'msiexec.exe' -ArgumentList @('/i', $odbc, '/qn', '/norestart', '/l*v', $odbcLog) -Wait -PassThru
 Assert-Exit $msi.ExitCode 'ODBC driver'
@@ -106,7 +106,7 @@ $connectorDir = Join-Path $profilePath 'Documents\Power BI Desktop\Custom Connec
 New-Item -ItemType Directory -Force -Path $connectorDir | Out-Null
 Write-Output 'Installing the MongoDB Power BI connector'
 $connector = Join-Path $connectorDir 'MongoDBAtlasODBC.pqx'
-Get-File 'https://downloads.mongodb.org/mongo-powerbi-connector/MongoDBAtlasODBC-1.2.2.pqx' $connector
+Get-File $env:CONNECTOR_URL $connector
 Unblock-File -Path $connector
 
 Write-Output 'Installing the schema builder'
